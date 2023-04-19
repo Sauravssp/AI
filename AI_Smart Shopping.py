@@ -1,50 +1,114 @@
-import tkinter as tk
+import os
+import cv2
+import pandas as pd
+import numpy as np
+from sklearn.cluster import MeanShift
 
-def handle_order():
-    order_id = order_entry.get()
-    try:
-        if order_id == '11':
-            order_label.config(text="Your order is out for delivery and your delivery pin is 122")
-        elif order_id == '12':
-            order_label.config(text="Your order might be delayed, sorry for the inconvenience")
-        elif order_id == '13':
-            order_label.config(text="Your order has already been delivered")
-        else:
-            order_label.config(text="Invalid order ID")
-    except Exception as e:
-        order_label.config(text="Error: " + str(e))
+import matplotlib.pyplot as plt
+from collections import Counter
 
-def handle_support():
-    support_label.config(text="Phone - 12222\nTelephone - 13333\nEmail - Help@chatbot.com")
+from tkinter import *
+from tkinter import ttk
 
-root = tk.Tk()
+class ShoppingAssistant:
+    def __init__(self, master):
+        self.master = master
+        master.title("Shopping Assistant")
 
-# UI elements
-greeting_label = tk.Label(root, text="Can I have your name please?")
-greeting_label.pack()
+        self.label = Label(master, text="Enter a keyword to search:")
+        self.label.pack()
 
-name_entry = tk.Entry(root)
-name_entry.pack()
+        self.keyword_entry = Entry(master, width=50)
+        self.keyword_entry.pack()
 
-name_button = tk.Button(root, text="Submit", command=lambda: greeting_label.config(text=name_entry.get() + ", Hi, good afternoon! How may I help you?"))
-name_button.pack()
+        self.search_button = Button(master, text="Search", command=self.search)
+        self.search_button.pack()
 
-option_label = tk.Label(root, text="Please select an option:")
-option_label.pack()
+        self.result_label = Label(master, text="")
+        self.result_label.pack()
 
-order_button = tk.Button(root, text="Order", command=lambda: handle_order())
-order_button.pack()
+    def search(self):
+        keyword = self.keyword_entry.get()
+        PATH = "data/"
 
-order_entry = tk.Entry(root)
-order_entry.pack()
+        for category in os.listdir(PATH):
+            if category == keyword:
+                path = os.path.join(PATH, category)
+                for image in os.listdir(path):
+                    img = cv2.imread(os.path.join(path, image))
+                    img = cv2.resize(img, (200, 200))
+                    cv2.imshow(category, img)
+                    cv2.waitKey(1000)
 
-support_button = tk.Button(root, text="Contact Customer Support", command=lambda: handle_support())
-support_button.pack()
+        centers = [[1, 1], [5, 5], [8, 4]]
 
-order_label = tk.Label(root, text="")
-order_label.pack()
+        dataset = pd.read_csv('person.csv')
 
-support_label = tk.Label(root, text="")
-support_label.pack()
+        X = dataset.iloc[:, [2, 3]].values
+        y = dataset.iloc[:, [0]].values
+        name = dataset['Item_names'].tolist()
 
+        ms = MeanShift()
+        ms.fit(X)
+        labels = ms.labels_
+        cluster_centers = ms.cluster_centers_
+
+        gg = Counter(labels)
+
+        def find_max():
+            max = gg[0]
+            v = 0
+            for i in range(len(gg)):
+                if gg[i] > max:
+                    max = gg[i]
+                    v = i
+            return v
+
+        Y = y.tolist()
+        L = labels.tolist()
+
+        max_label = find_max()
+
+        suggest = []
+        for i in range(len(labels)):
+            if max_label == L[i]:
+                suggest.append(Y[i])
+
+        new = []
+
+        def stripp(rr):
+            for i in range(len(suggest)):
+                p = str(rr[i]).replace('[', '').replace(']', '')
+                new.append(int(p))
+            return new
+
+        new_Y = stripp(Y)
+        new_name = []
+        for i in range(len(suggest)):
+            p = str(name[i]).replace('[', '').replace(']', '')
+            new_name.append(p)
+ 
+        n_clusters_ = len(np.unique(labels))
+
+        suggest = 10
+        colors = 10 * ['r.', 'g.', 'b.', 'c.', 'k.', 'y.', 'm.']
+
+        for i in range(len(X)):
+            plt.plot(X[i][0], X[i][1], colors[labels[i]], markersize=10)
+
+        plt.scatter(cluster_centers[:, 0], cluster_centers[:, 1], marker="x", s=150, linewidths=5, zorder=10)
+
+        item_name = dict(zip(new_Y, new_name))
+
+        result = "Recommendations:\n"
+        for i in range(suggest):
+            result += "Item ID- {}   Item name- {}\n".format(new_Y[i], new_name[i])
+
+        self.result_label.config(text=result)
+        
+        plt.show()
+
+
+root = Tk()
+my_gui = ShoppingAssistant(root)
 root.mainloop()
